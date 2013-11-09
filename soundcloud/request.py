@@ -5,6 +5,27 @@ import requests
 import soundcloud
 import hashconversions
 
+from requests.adapters import HTTPAdapter
+from requests.packages.urllib3.poolmanager import PoolManager
+
+
+class SSLAdapter(HTTPAdapter):
+    '''An HTTPS Transport Adapter that uses an arbitrary SSL version.
+
+    This tries to fix ssl problem which sometimes happen when using the
+    soundcloud API, for more info see:
+    https://lukasa.co.uk/2013/01/Choosing_SSL_Version_In_Requests/
+    '''
+    def __init__(self, ssl_version=None, **kwargs):
+        self.ssl_version = ssl_version
+        super(SSLAdapter, self).__init__(**kwargs)
+
+    def init_poolmanager(self, connections, maxsize, block=False):
+        self.poolmanager = PoolManager(num_pools=connections,
+                                       maxsize=maxsize,
+                                       block=block,
+                                       ssl_version=self.ssl_version)
+
 
 def is_file_like(f):
     """Check to see if ```f``` has a ```read()``` method."""
@@ -113,7 +134,10 @@ def make_request(method, url, params):
     files = namespaced_query_string(extract_files_from_dict(params))
     data = namespaced_query_string(remove_files_from_dict(params))
 
-    request_func = getattr(requests, method, None)
+    s = requests.Session()
+    s.mount('https://', SSLAdapter('TLSv1'))
+
+    request_func = getattr(s, method, None)
     if request_func is None:
         raise TypeError('Unknown method: %s' % (method,))
 
